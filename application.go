@@ -56,43 +56,44 @@ type Port struct {
 
 // Application is the definition for an application in marathon
 type Application struct {
-	ID                         string               `json:"id,omitempty"`
-	Cmd                        *string              `json:"cmd,omitempty"`
-	Args                       *[]string            `json:"args,omitempty"`
-	Constraints                *[][]string          `json:"constraints,omitempty"`
-	Container                  *Container           `json:"container,omitempty"`
-	CPUs                       float64              `json:"cpus,omitempty"`
-	Disk                       *float64             `json:"disk,omitempty"`
-	Env                        *map[string]string   `json:"env,omitempty"`
-	Executor                   *string              `json:"executor,omitempty"`
-	HealthChecks               *[]HealthCheck       `json:"healthChecks,omitempty"`
-	Instances                  *int                 `json:"instances,omitempty"`
-	Mem                        *float64             `json:"mem,omitempty"`
-	Tasks                      []*Task              `json:"tasks,omitempty"`
-	Ports                      []int                `json:"ports"`
-	PortDefinitions            *[]PortDefinition    `json:"portDefinitions,omitempty"`
-	RequirePorts               *bool                `json:"requirePorts,omitempty"`
-	BackoffSeconds             *float64             `json:"backoffSeconds,omitempty"`
-	BackoffFactor              *float64             `json:"backoffFactor,omitempty"`
-	MaxLaunchDelaySeconds      *float64             `json:"maxLaunchDelaySeconds,omitempty"`
-	TaskKillGracePeriodSeconds *float64             `json:"taskKillGracePeriodSeconds,omitempty"`
-	Deployments                []map[string]string  `json:"deployments,omitempty"`
-	Dependencies               []string             `json:"dependencies"`
-	TasksRunning               int                  `json:"tasksRunning,omitempty"`
-	TasksStaged                int                  `json:"tasksStaged,omitempty"`
-	TasksHealthy               int                  `json:"tasksHealthy,omitempty"`
-	TasksUnhealthy             int                  `json:"tasksUnhealthy,omitempty"`
-	TaskStats                  map[string]TaskStats `json:"taskStats,omitempty"`
-	User                       string               `json:"user,omitempty"`
-	UpgradeStrategy            *UpgradeStrategy     `json:"upgradeStrategy,omitempty"`
-	Uris                       *[]string            `json:"uris,omitempty"`
-	Version                    string               `json:"version,omitempty"`
-	VersionInfo                *VersionInfo         `json:"versionInfo,omitempty"`
-	Labels                     *map[string]string   `json:"labels,omitempty"`
-	AcceptedResourceRoles      []string             `json:"acceptedResourceRoles,omitempty"`
-	LastTaskFailure            *LastTaskFailure     `json:"lastTaskFailure,omitempty"`
-	Fetch                      *[]Fetch             `json:"fetch,omitempty"`
-	IPAddressPerTask           *IPAddressPerTask    `json:"ipAddress,omitempty"`
+	ID                         string                  `json:"id,omitempty"`
+	Cmd                        *string                 `json:"cmd,omitempty"`
+	Args                       *[]string               `json:"args,omitempty"`
+	Constraints                *[][]string             `json:"constraints,omitempty"`
+	Container                  *Container              `json:"container,omitempty"`
+	CPUs                       float64                 `json:"cpus,omitempty"`
+	Disk                       *float64                `json:"disk,omitempty"`
+	Env                        *map[string]interface{} `json:"env,omitempty"`
+	Executor                   *string                 `json:"executor,omitempty"`
+	HealthChecks               *[]HealthCheck          `json:"healthChecks,omitempty"`
+	Instances                  *int                    `json:"instances,omitempty"`
+	Mem                        *float64                `json:"mem,omitempty"`
+	Tasks                      []*Task                 `json:"tasks,omitempty"`
+	Ports                      []int                   `json:"ports"`
+	PortDefinitions            *[]PortDefinition       `json:"portDefinitions,omitempty"`
+	RequirePorts               *bool                   `json:"requirePorts,omitempty"`
+	BackoffSeconds             *float64                `json:"backoffSeconds,omitempty"`
+	BackoffFactor              *float64                `json:"backoffFactor,omitempty"`
+	MaxLaunchDelaySeconds      *float64                `json:"maxLaunchDelaySeconds,omitempty"`
+	TaskKillGracePeriodSeconds *float64                `json:"taskKillGracePeriodSeconds,omitempty"`
+	Deployments                []map[string]string     `json:"deployments,omitempty"`
+	Dependencies               []string                `json:"dependencies"`
+	TasksRunning               int                     `json:"tasksRunning,omitempty"`
+	TasksStaged                int                     `json:"tasksStaged,omitempty"`
+	TasksHealthy               int                     `json:"tasksHealthy,omitempty"`
+	TasksUnhealthy             int                     `json:"tasksUnhealthy,omitempty"`
+	TaskStats                  map[string]TaskStats    `json:"taskStats,omitempty"`
+	User                       string                  `json:"user,omitempty"`
+	UpgradeStrategy            *UpgradeStrategy        `json:"upgradeStrategy,omitempty"`
+	Uris                       *[]string               `json:"uris,omitempty"`
+	Version                    string                  `json:"version,omitempty"`
+	VersionInfo                *VersionInfo            `json:"versionInfo,omitempty"`
+	Labels                     *map[string]string      `json:"labels,omitempty"`
+	AcceptedResourceRoles      []string                `json:"acceptedResourceRoles,omitempty"`
+	LastTaskFailure            *LastTaskFailure        `json:"lastTaskFailure,omitempty"`
+	Fetch                      *[]Fetch                `json:"fetch,omitempty"`
+	IPAddressPerTask           *IPAddressPerTask       `json:"ipAddress,omitempty"`
+	Secrets                    *map[string]Secret      `json:"secrets,omitempty"`
 }
 
 // ApplicationVersions is a collection of application versions for a specific app in marathon
@@ -141,6 +142,18 @@ type TaskStats struct {
 type Stats struct {
 	Counts   map[string]int     `json:"counts"`
 	LifeTime map[string]float64 `json:"lifeTime"`
+}
+
+// Secret is a declaration of an exsiting secret object whose value will be used to replace
+// environment variables with a matching 'secret' reference
+type Secret struct {
+	Source string `json:"source"`
+}
+
+// EnvSecretValue is a reference to a secret whose value will be used as the value of the named
+// environment variable
+type EnvSecretValue struct {
+	Secret string `json:"secret"`
 }
 
 // SetIPAddressPerTask defines that the application will have a IP address defines by a external agent.
@@ -344,11 +357,44 @@ func (r *Application) AddEnv(name, value string) *Application {
 	return r
 }
 
+// AddEnvSecret adds an environment variable secret to the application
+//		name:	the name of the variable
+//		secret:	the name of secret defined in the application's Secrets
+func (r *Application) AddEnvSecret(name, secret string) *Application {
+	if r.Env == nil {
+		r.EmptyEnvs()
+	}
+	(*r.Env)[name] = EnvSecretValue{Secret: secret}
+
+	return r
+}
+
+// AddSecret adds a secret declaration
+//		name:	the name of the variable
+//		source:	the source id of the secret
+func (r *Application) AddSecret(name, source string) *Application {
+	if r.Secrets == nil {
+		r.EmptySecrets()
+	}
+	(*r.Secrets)[name] = Secret{Source: source}
+
+	return r
+}
+
 // EmptyEnvs explicitly empties the envs -- use this if you need to empty
 // the environments of an application that already has environments set (setting env to nil will
 // keep the current value)
 func (r *Application) EmptyEnvs() *Application {
-	r.Env = &map[string]string{}
+	r.Env = &map[string]interface{}{}
+
+	return r
+}
+
+// EmptySecrets explicitly empties the secrets -- use this if you need to empty
+// the secrets of an application that already has secrets set (setting secrets to nil will
+// keep the current value)
+func (r *Application) EmptySecrets() *Application {
+	r.Secrets = &map[string]Secret{}
 
 	return r
 }
