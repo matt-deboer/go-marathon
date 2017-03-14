@@ -17,6 +17,7 @@ limitations under the License.
 package marathon
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 	"testing"
@@ -97,6 +98,20 @@ func TestApplicationCPU(t *testing.T) {
 	assert.Equal(t, 0.0, app.CPUs)
 	app.CPU(0.1)
 	assert.Equal(t, 0.1, app.CPUs)
+}
+
+func TestApplicationSetGPUs(t *testing.T) {
+	app := NewDockerApplication()
+	assert.Nil(t, app.GPUs)
+	app.SetGPUs(0.1)
+	assert.Equal(t, 0.1, *app.GPUs)
+}
+
+func TestApplicationEmptyGPUs(t *testing.T) {
+	app := NewDockerApplication()
+	assert.Nil(t, app.GPUs)
+	app.EmptyGPUs()
+	assert.Equal(t, 0.0, *app.GPUs)
 }
 
 func TestApplicationArgs(t *testing.T) {
@@ -574,16 +589,20 @@ func TestWaitOnApplication(t *testing.T) {
 		endpoint := newFakeMarathonEndpoint(t, configs)
 		defer endpoint.Close()
 
-		var err error
+		errCh := make(chan error)
 		go func() {
-			err = endpoint.Client.WaitOnApplication(test.appName, test.timeout)
+			errCh <- endpoint.Client.WaitOnApplication(test.appName, test.timeout)
 		}()
-		timer := time.NewTimer(400 * time.Millisecond)
-		<-timer.C
-		if test.shouldSucceed {
-			assert.NoError(t, err, test.desc)
-		} else {
-			assert.IsType(t, err, ErrTimeoutError, test.desc)
+
+		select {
+		case <-time.After(400 * time.Millisecond):
+			assert.Fail(t, fmt.Sprintf("%s: WaitOnApplication did not complete in time", test.desc))
+		case err := <-errCh:
+			if test.shouldSucceed {
+				assert.NoError(t, err, test.desc)
+			} else {
+				assert.IsType(t, err, ErrTimeoutError, test.desc)
+			}
 		}
 	}
 }
@@ -646,4 +665,19 @@ func TestIPAddressPerTaskDiscovery(t *testing.T) {
 	assert.NotNil(t, disc.Ports)
 	assert.Equal(t, 0, len(*disc.Ports))
 
+}
+
+func TestUpgradeStrategy(t *testing.T) {
+	app := Application{}
+	assert.Nil(t, app.UpgradeStrategy)
+	app.SetUpgradeStrategy(UpgradeStrategy{}.SetMinimumHealthCapacity(1.0).SetMaximumOverCapacity(0.0))
+	us := app.UpgradeStrategy
+	assert.Equal(t, 1.0, *us.MinimumHealthCapacity)
+	assert.Equal(t, 0.0, *us.MaximumOverCapacity)
+
+	app.EmptyUpgradeStrategy()
+	us = app.UpgradeStrategy
+	assert.NotNil(t, us)
+	assert.Nil(t, us.MinimumHealthCapacity)
+	assert.Nil(t, us.MaximumOverCapacity)
 }
