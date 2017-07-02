@@ -17,12 +17,10 @@ limitations under the License.
 package marathon
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
-	"strings"
 	"time"
 )
 
@@ -58,45 +56,50 @@ type Port struct {
 
 // Application is the definition for an application in marathon
 type Application struct {
-	ID                         string               `json:"id,omitempty"`
-	Cmd                        *string              `json:"cmd,omitempty"`
-	Args                       *[]string            `json:"args,omitempty"`
-	Constraints                *[][]string          `json:"constraints,omitempty"`
-	Container                  *Container           `json:"container,omitempty"`
-	CPUs                       float64              `json:"cpus,omitempty"`
-	GPUs                       *float64             `json:"gpus,omitempty"`
-	Disk                       *float64             `json:"disk,omitempty"`
-	Env                        *map[string]EnvValue `json:"env,omitempty"`
-	Executor                   *string              `json:"executor,omitempty"`
-	HealthChecks               *[]HealthCheck       `json:"healthChecks,omitempty"`
-	Instances                  *int                 `json:"instances,omitempty"`
-	Mem                        *float64             `json:"mem,omitempty"`
-	Tasks                      []*Task              `json:"tasks,omitempty"`
-	Ports                      []int                `json:"ports"`
-	PortDefinitions            *[]PortDefinition    `json:"portDefinitions,omitempty"`
-	RequirePorts               *bool                `json:"requirePorts,omitempty"`
-	BackoffSeconds             *float64             `json:"backoffSeconds,omitempty"`
-	BackoffFactor              *float64             `json:"backoffFactor,omitempty"`
-	MaxLaunchDelaySeconds      *float64             `json:"maxLaunchDelaySeconds,omitempty"`
-	TaskKillGracePeriodSeconds *float64             `json:"taskKillGracePeriodSeconds,omitempty"`
-	Deployments                []map[string]string  `json:"deployments,omitempty"`
-	Dependencies               []string             `json:"dependencies"`
-	TasksRunning               int                  `json:"tasksRunning,omitempty"`
-	TasksStaged                int                  `json:"tasksStaged,omitempty"`
-	TasksHealthy               int                  `json:"tasksHealthy,omitempty"`
-	TasksUnhealthy             int                  `json:"tasksUnhealthy,omitempty"`
-	TaskStats                  map[string]TaskStats `json:"taskStats,omitempty"`
-	User                       string               `json:"user,omitempty"`
-	UpgradeStrategy            *UpgradeStrategy     `json:"upgradeStrategy,omitempty"`
-	Uris                       *[]string            `json:"uris,omitempty"`
-	Version                    string               `json:"version,omitempty"`
-	VersionInfo                *VersionInfo         `json:"versionInfo,omitempty"`
-	Labels                     *map[string]string   `json:"labels,omitempty"`
-	AcceptedResourceRoles      []string             `json:"acceptedResourceRoles,omitempty"`
-	LastTaskFailure            *LastTaskFailure     `json:"lastTaskFailure,omitempty"`
-	Fetch                      *[]Fetch             `json:"fetch,omitempty"`
-	IPAddressPerTask           *IPAddressPerTask    `json:"ipAddress,omitempty"`
-	Secrets                    *map[string]Secret   `json:"secrets,omitempty"`
+	ID                         string                  `json:"id,omitempty"`
+	Cmd                        *string                 `json:"cmd,omitempty"`
+	Args                       *[]string               `json:"args,omitempty"`
+	Constraints                *[][]string             `json:"constraints,omitempty"`
+	Container                  *Container              `json:"container,omitempty"`
+	CPUs                       float64                 `json:"cpus,omitempty"`
+	GPUs                       *float64                `json:"gpus,omitempty"`
+	Disk                       *float64                `json:"disk,omitempty"`
+	Env                        *map[string]interface{} `json:"env,omitempty"`
+	Executor                   *string                 `json:"executor,omitempty"`
+	HealthChecks               *[]HealthCheck          `json:"healthChecks,omitempty"`
+	ReadinessChecks            *[]ReadinessCheck       `json:"readinessChecks,omitempty"`
+	Instances                  *int                    `json:"instances,omitempty"`
+	Mem                        *float64                `json:"mem,omitempty"`
+	Tasks                      []*Task                 `json:"tasks,omitempty"`
+	Ports                      []int                   `json:"ports"`
+	PortDefinitions            *[]PortDefinition       `json:"portDefinitions,omitempty"`
+	RequirePorts               *bool                   `json:"requirePorts,omitempty"`
+	BackoffSeconds             *float64                `json:"backoffSeconds,omitempty"`
+	BackoffFactor              *float64                `json:"backoffFactor,omitempty"`
+	MaxLaunchDelaySeconds      *float64                `json:"maxLaunchDelaySeconds,omitempty"`
+	TaskKillGracePeriodSeconds *float64                `json:"taskKillGracePeriodSeconds,omitempty"`
+	Deployments                []map[string]string     `json:"deployments,omitempty"`
+	// Available when embedding readiness information through query parameter.
+	ReadinessCheckResults *[]ReadinessCheckResult `json:"readinessCheckResults,omitempty"`
+	Dependencies          []string                `json:"dependencies"`
+	TasksRunning          int                     `json:"tasksRunning,omitempty"`
+	TasksStaged           int                     `json:"tasksStaged,omitempty"`
+	TasksHealthy          int                     `json:"tasksHealthy,omitempty"`
+	TasksUnhealthy        int                     `json:"tasksUnhealthy,omitempty"`
+	TaskStats             map[string]TaskStats    `json:"taskStats,omitempty"`
+	User                  string                  `json:"user,omitempty"`
+	UpgradeStrategy       *UpgradeStrategy        `json:"upgradeStrategy,omitempty"`
+	UnreachableStrategy   *UnreachableStrategy    `json:"unreachableStrategy,omitempty"`
+	KillSelection         string                  `json:"killSelection,omitempty"`
+	Uris                  *[]string               `json:"uris,omitempty"`
+	Version               string                  `json:"version,omitempty"`
+	VersionInfo           *VersionInfo            `json:"versionInfo,omitempty"`
+	Labels                *map[string]string      `json:"labels,omitempty"`
+	AcceptedResourceRoles []string                `json:"acceptedResourceRoles,omitempty"`
+	LastTaskFailure       *LastTaskFailure        `json:"lastTaskFailure,omitempty"`
+	Fetch                 *[]Fetch                `json:"fetch,omitempty"`
+	IPAddressPerTask      *IPAddressPerTask       `json:"ipAddress,omitempty"`
+	Secrets               *map[string]Secret      `json:"secrets,omitempty"`
 }
 
 // ApplicationVersions is a collection of application versions for a specific app in marathon
@@ -145,41 +148,6 @@ type TaskStats struct {
 type Stats struct {
 	Counts   map[string]int     `json:"counts"`
 	LifeTime map[string]float64 `json:"lifeTime"`
-}
-
-// EnvValue represents either a string environment variable value, or
-// a reference to a Secret defined in the Secrets attribute of the Application
-type EnvValue struct {
-	Value  string
-	Secret string `json:"secret"`
-}
-
-// MarshalJSON marshalls an EnvValue to JSON
-func (v EnvValue) MarshalJSON() ([]byte, error) {
-	buffer := bytes.NewBufferString("")
-	if len(v.Secret) > 0 {
-		buffer.WriteString(fmt.Sprintf("{\"secret\": \"%s\"}", v.Secret))
-	} else {
-		buffer.WriteString(fmt.Sprintf("\"%s\"", v.Value))
-	}
-	return buffer.Bytes(), nil
-}
-
-// UnmarshalJSON unmarshalls an EnvValue from JSON
-func (v *EnvValue) UnmarshalJSON(b []byte) error {
-	value := strings.TrimLeft(string(b), " \n")
-	if strings.HasPrefix(value, "{") {
-		hash := make(map[string]string)
-		err := json.Unmarshal(b, &hash)
-		if err != nil {
-			return err
-		}
-		*v = EnvValue{Secret: hash["secret"]}
-	} else {
-
-		*v = EnvValue{Value: strings.TrimSuffix(strings.TrimPrefix(value, "\""), "\"")}
-	}
-	return nil
 }
 
 // Secret is a reference to an existing secret object whose value may be used
@@ -400,7 +368,7 @@ func (r *Application) AddEnv(name, value string) *Application {
 	if r.Env == nil {
 		r.EmptyEnvs()
 	}
-	(*r.Env)[name] = EnvValue{Value: value}
+	(*r.Env)[name] = value
 
 	return r
 }
@@ -409,19 +377,7 @@ func (r *Application) AddEnv(name, value string) *Application {
 // the environments of an application that already has environments set (setting env to nil will
 // keep the current value)
 func (r *Application) EmptyEnvs() *Application {
-	r.Env = &map[string]EnvValue{}
-
-	return r
-}
-
-// AddSecret adds a secret declaration
-//		name:	the name of the variable
-//		source:	the source ID of the secret
-func (r *Application) AddSecret(name, source string) *Application {
-	if r.Secrets == nil {
-		r.EmptySecrets()
-	}
-	(*r.Secrets)[name] = Secret{Source: source}
+	r.Env = &map[string]interface{}{}
 
 	return r
 }
@@ -435,14 +391,19 @@ func (r *Application) EmptySecrets() *Application {
 	return r
 }
 
-// AddEnvSecret adds an environment variable secret to the application
-//		name:	the name of the variable
+// AddEnvSecret adds a secret to the application
+//		name:	the name of the environment variable
 //		secret:	the name of secret defined in the application's Secrets
-func (r *Application) AddEnvSecret(name, secret string) *Application {
+//		source: the source ID of the secret
+func (r *Application) AddEnvSecret(name, secret, source string) *Application {
 	if r.Env == nil {
 		r.EmptyEnvs()
 	}
-	(*r.Env)[name] = EnvValue{Secret: secret}
+	if r.Secrets == nil {
+		r.EmptySecrets()
+	}
+	(*r.Secrets)[secret] = Secret{Source: source}
+	(*r.Env)[name] = map[string]string{"secret": secret}
 
 	return r
 }
@@ -482,6 +443,26 @@ func (r *Application) HasHealthChecks() bool {
 	return r.HealthChecks != nil && len(*r.HealthChecks) > 0
 }
 
+// AddReadinessCheck adds a readiness check.
+func (r *Application) AddReadinessCheck(readinessCheck ReadinessCheck) *Application {
+	if r.ReadinessChecks == nil {
+		r.EmptyReadinessChecks()
+	}
+
+	readinessChecks := *r.ReadinessChecks
+	readinessChecks = append(readinessChecks, readinessCheck)
+	r.ReadinessChecks = &readinessChecks
+
+	return r
+}
+
+// EmptyReadinessChecks empties the readiness checks.
+func (r *Application) EmptyReadinessChecks() *Application {
+	r.ReadinessChecks = &[]ReadinessCheck{}
+
+	return r
+}
+
 // DeploymentIDs retrieves the application deployments IDs
 func (r *Application) DeploymentIDs() []*DeploymentID {
 	var deployments []*DeploymentID
@@ -507,7 +488,7 @@ func (r *Application) DeploymentIDs() []*DeploymentID {
 // CheckHTTP adds a HTTP check to an application
 //		port: 		the port the check should be checking
 // 		interval:	the interval in seconds the check should be performed
-func (r *Application) CheckHTTP(uri string, port, interval int) (*Application, error) {
+func (r *Application) CheckHTTP(path string, port, interval int) (*Application, error) {
 	if r.Container == nil || r.Container.Docker == nil {
 		return nil, ErrNoApplicationContainer
 	}
@@ -518,7 +499,7 @@ func (r *Application) CheckHTTP(uri string, port, interval int) (*Application, e
 	}
 	health := NewDefaultHealthCheck()
 	health.IntervalSeconds = interval
-	*health.Path = uri
+	*health.Path = path
 	*health.PortIndex = portIndex
 	// step: add to the checks
 	r.AddHealthCheck(*health)
@@ -609,6 +590,20 @@ func (r *Application) EmptyUpgradeStrategy() *Application {
 	return r
 }
 
+// SetUnreachableStrategy sets the unreachable strategy.
+func (r *Application) SetUnreachableStrategy(us UnreachableStrategy) *Application {
+	r.UnreachableStrategy = &us
+	return r
+}
+
+// EmptyUnreachableStrategy explicitly empties the unreachable strategy -- use this if
+// you need to empty the unreachable strategy of an application that already has
+// the unreachable strategy set (setting it to nil will keep the current value).
+func (r *Application) EmptyUnreachableStrategy() *Application {
+	r.UnreachableStrategy = &UnreachableStrategy{}
+	return r
+}
+
 // String returns the json representation of this application
 func (r *Application) String() string {
 	s, err := json.MarshalIndent(r, "", "  ")
@@ -665,9 +660,9 @@ func (r *marathonClient) HasApplicationVersion(name, version string) (bool, erro
 // ApplicationVersions is a list of versions which has been deployed with marathon for a specific application
 //		name:		the id used to identify the application
 func (r *marathonClient) ApplicationVersions(name string) (*ApplicationVersions, error) {
-	uri := fmt.Sprintf("%s/versions", buildURI(name))
+	path := fmt.Sprintf("%s/versions", buildPath(name))
 	versions := new(ApplicationVersions)
-	if err := r.apiGet(uri, nil, versions); err != nil {
+	if err := r.apiGet(path, nil, versions); err != nil {
 		return nil, err
 	}
 	return versions, nil
@@ -677,9 +672,9 @@ func (r *marathonClient) ApplicationVersions(name string) (*ApplicationVersions,
 // 		name: 		the id used to identify the application
 //		version: 	the version (normally a timestamp) you wish to change to
 func (r *marathonClient) SetApplicationVersion(name string, version *ApplicationVersion) (*DeploymentID, error) {
-	uri := fmt.Sprintf(buildURI(name))
+	path := fmt.Sprintf(buildPath(name))
 	deploymentID := new(DeploymentID)
-	if err := r.apiPut(uri, version, deploymentID); err != nil {
+	if err := r.apiPut(path, version, deploymentID); err != nil {
 		return nil, err
 	}
 
@@ -693,7 +688,7 @@ func (r *marathonClient) Application(name string) (*Application, error) {
 		Application *Application `json:"app"`
 	}
 
-	if err := r.apiGet(buildURI(name), nil, &wrapper); err != nil {
+	if err := r.apiGet(buildPath(name), nil, &wrapper); err != nil {
 		return nil, err
 	}
 
@@ -704,7 +699,7 @@ func (r *marathonClient) Application(name string) (*Application, error) {
 // 		name: 		the id used to identify the application
 //		opts:		GetAppOpts request payload
 func (r *marathonClient) ApplicationBy(name string, opts *GetAppOpts) (*Application, error) {
-	u, err := addOptions(buildURI(name), opts)
+	path, err := addOptions(buildPath(name), opts)
 	if err != nil {
 		return nil, err
 	}
@@ -712,7 +707,7 @@ func (r *marathonClient) ApplicationBy(name string, opts *GetAppOpts) (*Applicat
 		Application *Application `json:"app"`
 	}
 
-	if err := r.apiGet(u, nil, &wrapper); err != nil {
+	if err := r.apiGet(path, nil, &wrapper); err != nil {
 		return nil, err
 	}
 
@@ -725,8 +720,8 @@ func (r *marathonClient) ApplicationBy(name string, opts *GetAppOpts) (*Applicat
 func (r *marathonClient) ApplicationByVersion(name, version string) (*Application, error) {
 	app := new(Application)
 
-	uri := fmt.Sprintf("%s/versions/%s", buildURI(name), version)
-	if err := r.apiGet(uri, nil, app); err != nil {
+	path := fmt.Sprintf("%s/versions/%s", buildPath(name), version)
+	if err := r.apiGet(path, nil, app); err != nil {
 		return nil, err
 	}
 
@@ -833,10 +828,10 @@ func (r *marathonClient) appExistAndRunning(name string) bool {
 // 		name: 		the id used to identify the application
 //		force:		used to force the delete operation in case of blocked deployment
 func (r *marathonClient) DeleteApplication(name string, force bool) (*DeploymentID, error) {
-	uri := buildURIWithForceParam(name, force)
+	path := buildPathWithForceParam(name, force)
 	// step: check of the application already exists
 	deployID := new(DeploymentID)
-	if err := r.apiDelete(uri, nil, deployID); err != nil {
+	if err := r.apiDelete(path, nil, deployID); err != nil {
 		return nil, err
 	}
 
@@ -848,8 +843,8 @@ func (r *marathonClient) DeleteApplication(name string, force bool) (*Deployment
 func (r *marathonClient) RestartApplication(name string, force bool) (*DeploymentID, error) {
 	deployment := new(DeploymentID)
 	var options struct{}
-	uri := buildURIWithForceParam(fmt.Sprintf("%s/restart", name), force)
-	if err := r.apiPost(uri, &options, deployment); err != nil {
+	path := buildPathWithForceParam(fmt.Sprintf("%s/restart", name), force)
+	if err := r.apiPost(path, &options, deployment); err != nil {
 		return nil, err
 	}
 
@@ -864,9 +859,9 @@ func (r *marathonClient) ScaleApplicationInstances(name string, instances int, f
 	changes := new(Application)
 	changes.ID = validateID(name)
 	changes.Instances = &instances
-	uri := buildURIWithForceParam(name, force)
+	path := buildPathWithForceParam(name, force)
 	deployID := new(DeploymentID)
-	if err := r.apiPut(uri, changes, deployID); err != nil {
+	if err := r.apiPut(path, changes, deployID); err != nil {
 		return nil, err
 	}
 
@@ -877,22 +872,22 @@ func (r *marathonClient) ScaleApplicationInstances(name string, instances int, f
 // 		application:		the structure holding the application configuration
 func (r *marathonClient) UpdateApplication(application *Application, force bool) (*DeploymentID, error) {
 	result := new(DeploymentID)
-	uri := buildURIWithForceParam(application.ID, force)
-	if err := r.apiPut(uri, application, result); err != nil {
+	path := buildPathWithForceParam(application.ID, force)
+	if err := r.apiPut(path, application, result); err != nil {
 		return nil, err
 	}
 	return result, nil
 }
 
-func buildURIWithForceParam(path string, force bool) string {
-	uri := buildURI(path)
+func buildPathWithForceParam(rootPath string, force bool) string {
+	path := buildPath(rootPath)
 	if force {
-		uri += "?force=true"
+		path += "?force=true"
 	}
-	return uri
+	return path
 }
 
-func buildURI(path string) string {
+func buildPath(path string) string {
 	return fmt.Sprintf("%s/%s", marathonAPIApps, trimRootPath(path))
 }
 
