@@ -18,12 +18,15 @@ package marathon
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestApplicationDependsOn(t *testing.T) {
@@ -37,6 +40,33 @@ func TestApplicationMemory(t *testing.T) {
 	app := NewDockerApplication()
 	app.Memory(50.0)
 	assert.Equal(t, 50.0, *app.Mem)
+}
+
+func TestApplicationString(t *testing.T) {
+	app := NewDockerApplication().
+		Name("my-app").
+		CPU(0.1).
+		Memory(64).
+		Storage(0.0).
+		Count(2).
+		AddArgs("/usr/sbin/apache2ctl", "-D", "FOREGROUND").
+		AddEnv("NAME", "frontend_http").
+		AddEnv("SERVICE_80_NAME", "test_http").
+		AddEnvSecret("SECRET1", "secret1", "/path/to/secret")
+	app.
+		Container.Docker.Container("quay.io/gambol99/apache-php:latest").
+		Bridged().
+		Expose(80).
+		Expose(443)
+	app, err := app.CheckHTTP("/health", 80, 5)
+	assert.Nil(t, err)
+
+	expectedAppJSONBytes, err := ioutil.ReadFile("tests/app-definitions/TestApplicationString-output.json")
+	if err != nil {
+		panic(err)
+	}
+	expectedAppJSON := strings.TrimSpace(string(expectedAppJSONBytes))
+	assert.Equal(t, expectedAppJSON, app.String())
 }
 
 func TestApplicationCount(t *testing.T) {
@@ -169,11 +199,11 @@ func TestApplicationEnvs(t *testing.T) {
 	app := NewDockerApplication()
 	assert.Nil(t, app.Env)
 
-	app.AddEnv("hello", "world").AddEnv("foo", "bar").AddEnvSecret("top", "secret1")
+	app.AddEnv("hello", "world").AddEnv("foo", "bar").AddEnvSecret("top", "secret1", "path/to/my/secret")
 	assert.Equal(t, 3, len(*app.Env))
-	assert.Equal(t, EnvValue{Value: "world"}, (*app.Env)["hello"])
-	assert.Equal(t, EnvValue{Value: "bar"}, (*app.Env)["foo"])
-	assert.Equal(t, EnvValue{Secret: "secret1"}, (*app.Env)["top"])
+	assert.Equal(t, "world", (*app.Env)["hello"])
+	assert.Equal(t, "bar", (*app.Env)["foo"])
+	assert.Equal(t, map[string]string{"secret": "secret1"}, (*app.Env)["top"])
 
 	app.EmptyEnvs()
 	assert.NotNil(t, app.Env)
@@ -184,8 +214,8 @@ func TestApplicationSecrets(t *testing.T) {
 	app := NewDockerApplication()
 	assert.Nil(t, app.Env)
 
-	app.AddSecret("secret0", "path/to/my/secret")
-	app.AddSecret("secret1", "path/to/my/other/secret")
+	app.AddEnvSecret("top", "secret0", "path/to/my/secret")
+	app.AddEnvSecret("top2", "secret1", "path/to/my/other/secret")
 	assert.Equal(t, 2, len(*app.Secrets))
 	assert.Equal(t, Secret{Source: "path/to/my/secret"}, (*app.Secrets)["secret0"])
 	assert.Equal(t, Secret{Source: "path/to/my/other/secret"}, (*app.Secrets)["secret1"])
@@ -219,6 +249,21 @@ func TestApplicationHealthChecks(t *testing.T) {
 	app.EmptyHealthChecks()
 	assert.NotNil(t, app.HealthChecks)
 	assert.Equal(t, 0, len(*app.HealthChecks))
+}
+
+func TestApplicationReadinessChecks(t *testing.T) {
+	app := NewDockerApplication()
+	require.Nil(t, app.HealthChecks)
+	rc := ReadinessCheck{}
+	rc.SetName("/readiness")
+	app.AddReadinessCheck(rc)
+
+	require.Equal(t, 1, len(*app.ReadinessChecks))
+	assert.Equal(t, "/readiness", *((*app.ReadinessChecks)[0].Name))
+
+	app.EmptyReadinessChecks()
+	require.NotNil(t, app.ReadinessChecks)
+	assert.Equal(t, 0, len(*app.ReadinessChecks))
 }
 
 func TestApplicationPortDefinitions(t *testing.T) {
@@ -319,7 +364,7 @@ func TestApplications(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, applications)
 	assert.Equal(t, len(applications.Apps), 2)
-	assert.Equal(t, (*applications.Apps[0].Env)["SECRET1"].Secret, "secret0")
+	assert.Equal(t, (*applications.Apps[0].Env)["SECRET1"].(map[string]interface{})["secret"].(string), "secret0")
 	assert.Equal(t, (*applications.Apps[0].Secrets)["secret0"].Source, "secret/definition/id")
 
 	v := url.Values{}
@@ -343,6 +388,32 @@ func TestApplicationsEmbedTaskStats(t *testing.T) {
 	assert.NotNil(t, applications.Apps[0].TaskStats)
 	assert.Equal(t, applications.Apps[0].TaskStats["startedAfterLastScaling"].Stats.Counts["healthy"], 1)
 	assert.Equal(t, applications.Apps[0].TaskStats["startedAfterLastScaling"].Stats.LifeTime["averageSeconds"], 17024.575)
+}
+
+func TestApplicationsEmbedReadiness(t *testing.T) {
+	endpoint := newFakeMarathonEndpoint(t, nil)
+	defer endpoint.Close()
+
+	v := url.Values{}
+	v.Set("embed", "apps.readiness")
+	applications, err := endpoint.Client.Applications(v)
+	require.NoError(t, err)
+	require.NotNil(t, applications)
+	require.Equal(t, len(applications.Apps), 1)
+	require.NotNil(t, applications.Apps[0].ReadinessCheckResults)
+	require.True(t, len(*applications.Apps[0].ReadinessCheckResults) > 0)
+	actualRes := (*applications.Apps[0].ReadinessCheckResults)[0]
+	expectedRes := ReadinessCheckResult{
+		Name:   "myReadyCheck",
+		TaskID: "test_frontend_app1.c9de6033",
+		Ready:  false,
+		LastResponse: ReadinessLastResponse{
+			Body:        "{}",
+			ContentType: "application/json",
+			Status:      500,
+		},
+	}
+	assert.Equal(t, expectedRes, actualRes)
 }
 
 func TestListApplications(t *testing.T) {
