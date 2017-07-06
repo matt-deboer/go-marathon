@@ -14,7 +14,6 @@ examples/groups/groups
 examples/multiple_endpoints/multiple_endpoints
 examples/queue/queue
 examples/tasks/tasks
-coverage
 
 # Folders
 _obj
